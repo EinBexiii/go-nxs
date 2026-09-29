@@ -3,14 +3,14 @@ module github.com/df-mc/go-nxs/examples/gophertunnel
 go 1.25.0
 
 require (
-	github.com/df-mc/go-nxs v0.0.0
-	github.com/sandertv/gophertunnel v1.54.0
+	github.com/df-mc/go-nxs v0.0.0-20260928232350-6a2d3943d2cc
+	github.com/sandertv/gophertunnel v1.62.1-0.20260928233358-80c811b61860
 )
 
 require (
 	github.com/coder/websocket v1.8.14 // indirect
 	github.com/coreos/go-oidc/v3 v3.17.0 // indirect
-	github.com/df-mc/go-nethernet v1.0.24 // indirect
+	github.com/df-mc/go-nethernet v1.0.25-0.20260928232102-1c7322005fa8 // indirect
 	github.com/df-mc/go-playfab/v2 v2.0.2 // indirect
 	github.com/df-mc/go-xsapi/v2 v2.0.3 // indirect
 	github.com/df-mc/jsonc v1.0.5 // indirect
@@ -44,10 +44,4 @@ require (
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
-)
-
-replace (
-	github.com/df-mc/go-nethernet => ../../../go-nethernet
-	github.com/df-mc/go-nxs => ../..
-	github.com/sandertv/gophertunnel => ../../../gophertunnel
 )

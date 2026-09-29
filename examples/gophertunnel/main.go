@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log/slog"
 	"net/netip"
 	"os"
@@ -47,23 +48,27 @@ func main() {
 			conf.Endpoints = append(conf.Endpoints, ap)
 		}
 	}
+	if err := run(conf, *dereg, log); err != nil {
+		log.Error(err.Error())
+		os.Exit(1)
+	}
+}
 
+func run(conf nxs.Config, deregister bool, log *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
 	provider, err := nxs.New(ctx, conf)
 	if err != nil {
-		log.Error("start provider", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("start provider: %w", err)
 	}
 	defer provider.Close()
-	if *dereg {
+	if deregister {
 		if err := provider.Deregister(ctx); err != nil {
-			log.Error("deregister", "error", err)
-			os.Exit(1)
+			return fmt.Errorf("deregister: %w", err)
 		}
 		log.Info("deregistered")
-		return
+		return nil
 	}
 	log.Info("listening", "addr", provider.Addr(), "publicAddress", provider.PublicAddress())
 
@@ -71,8 +76,7 @@ func main() {
 		StatusProvider: minecraft.NewStatusProvider("NXS Example", "gophertunnel"),
 	}.ListenNetwork(minecraft.NetherNet{Signaling: provider, Log: log}, "")
 	if err != nil {
-		log.Error("listen", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("listen: %w", err)
 	}
 	go func() {
 		<-ctx.Done()
@@ -82,7 +86,7 @@ func main() {
 	for {
 		c, err := l.Accept()
 		if err != nil {
-			return
+			return nil
 		}
 		provider.GameJoined(c)
 		go handle(c.(*minecraft.Conn), log)

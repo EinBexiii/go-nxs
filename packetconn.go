@@ -131,7 +131,7 @@ func (p *packetConn) WriteToAddrPort(b []byte, addr netip.AddrPort) (int, error)
 func (p *packetConn) SetReadDeadline(time.Time) error { return nil }
 
 // SetDeadline only applies to writes.
-func (p *packetConn) SetDeadline(t time.Time) error { return p.UDPConn.SetWriteDeadline(t) }
+func (p *packetConn) SetDeadline(t time.Time) error { return p.SetWriteDeadline(t) }
 
 // Close ...
 func (p *packetConn) Close() error {
