@@ -84,6 +84,8 @@ type attempt struct {
 	connectionID uint64
 	// outcome is set once a game outcome has been reported.
 	outcome atomic.Bool
+	// key is the admission key of the login until its identity is verified.
+	key atomic.Pointer[admission.Key]
 }
 
 func newHost(addr string, maxSessions int, log *slog.Logger) (*host, error) {
@@ -292,6 +294,7 @@ func (h *host) establish(a *attempt, adm nethernet.Admission, password string) {
 	h.changed()
 
 	<-conn.Context().Done()
+	a.key.Store(nil)
 	h.mu.Lock()
 	delete(h.sessions, a.connectionID)
 	delete(h.tuples, a.tuple)
@@ -358,7 +361,11 @@ func (h *host) gameOutcome(addr net.Addr, stage, reason string) {
 	h.mu.Lock()
 	a, ok := h.conns[na.ConnectionID]
 	h.mu.Unlock()
-	if ok && !a.outcome.Swap(true) {
+	if !ok {
+		return
+	}
+	a.key.Store(nil)
+	if !a.outcome.Swap(true) {
 		h.emit(a, stage, reason, nil)
 	}
 }
@@ -366,6 +373,7 @@ func (h *host) gameOutcome(addr net.Addr, stage, reason string) {
 func (h *host) fail(a *attempt, reason string, err error) {
 	h.log.Debug("admission failed", "reason", reason, "addr", a.tuple, "error", err)
 	h.emit(a, "ticket.failed", reason, nil)
+	a.key.Store(nil)
 	h.mu.Lock()
 	h.pending--
 	delete(h.tuples, a.tuple)
@@ -382,16 +390,22 @@ func (h *host) emit(a *attempt, stage, reason string, remote *netip.AddrPort) {
 
 // verifier returns a one-shot check of the login identity key against the admission.
 func (h *host) verifier(a *attempt, key admission.Key, claims admission.Claims) func(*ecdsa.PublicKey) error {
-	deadline := time.Now().Add(time.Until(claims.ExpiresAt))
+	ttl := time.Until(claims.ExpiresAt)
+	deadline := time.Now().Add(ttl)
+	a.key.Store(&key)
+	time.AfterFunc(ttl, func() { a.key.Store(nil) })
 	var used atomic.Bool
 	return func(pub *ecdsa.PublicKey) error {
 		if used.Swap(true) {
 			return errors.New("nxs: admission identity already verified")
 		}
+		k := a.key.Swap(nil)
 		var err error
-		if time.Now().After(deadline) {
+		if k == nil {
+			err = errors.New("nxs: admission no longer pending")
+		} else if time.Now().After(deadline) {
 			err = errors.New("nxs: admission expired before login")
-		} else if !key.VerifyBinding(h.audience, pub, claims.IdentityBinding) {
+		} else if !k.VerifyBinding(h.audience, pub, claims.IdentityBinding) {
 			err = errors.New("nxs: login identity does not match admission")
 		}
 		if err != nil && h.gameOutcomes && !a.outcome.Swap(true) {
